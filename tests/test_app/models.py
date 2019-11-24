@@ -2,6 +2,9 @@ from django.db import models
 
 from django_elasticsearch_model_binder.mixins import ESModelBinderMixin
 
+from .managers import ESEnabledQuerySet
+
+
 class User(models.Model):
     email = models.EmailField(max_length=254)
 
@@ -11,3 +14,5 @@ class Author(ESModelBinderMixin, models.Model):
     age = models.IntegerField()
 
     es_cached_fields = ['publishing_name', 'user']
+
+    objects = ESEnabledQuerySet.as_manager()
