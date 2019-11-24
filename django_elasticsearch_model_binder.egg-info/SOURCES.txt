@@ -1,0 +1,10 @@
+README.rst
+setup.py
+django_elasticsearch_model_binder/__init__.py
+django_elasticsearch_model_binder/exceptions.py
+django_elasticsearch_model_binder/mixins.py
+django_elasticsearch_model_binder.egg-info/PKG-INFO
+django_elasticsearch_model_binder.egg-info/SOURCES.txt
+django_elasticsearch_model_binder.egg-info/dependency_links.txt
+django_elasticsearch_model_binder.egg-info/requires.txt
+django_elasticsearch_model_binder.egg-info/top_level.txt
