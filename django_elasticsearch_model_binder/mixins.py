@@ -36,7 +36,7 @@ class ESModelBinderMixin(models.Model):
         if isinstance(value, models.Model):
             return value.pk
         elif isinstance(value, datetime):
-            return str(value)
+            return value.strftime('%Y-%M-%d %H:%M:%S')
         else:
             # Catch all try to cast value to string raising
             # an exception explicitly if that fails.
