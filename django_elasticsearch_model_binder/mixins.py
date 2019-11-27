@@ -10,7 +10,10 @@ from elasticsearch.helpers import bulk
 
 from .exceptions import (
     NominatedFieldDoesNotExistForESIndexingException,
+    UnableToBulkIndexModelsToElasticSearch,
     UnableToCastESNominatedFieldToStringException,
+    UnableToDeleteModelFromElasticSearch,
+    UnableToSaveModelToElasticSearch,
 )
 
 class ESModelBinderMixin(models.Model):
@@ -75,19 +78,29 @@ class ESModelBinderMixin(models.Model):
                 getattr(self, field)
             )
 
-        self.get_es_client().index(
-            index=self.get_index_name(),
-            doc_type=self.__class__.__name__,
-            id=self.pk,
-            body=document
-        )
+        try:
+            self.get_es_client().index(
+                index=self.get_index_name(),
+                doc_type=self.__class__.__name__,
+                id=self.pk,
+                body=document
+            )
+        except Exception:
+            raise UnableToSaveModelToElasticSearch()
 
     def delete(self, *args, **kwargs):
         """
         Same as save but in reverse, remove the model instances cached
         fields in Elasticsearch.
         """
-        self.get_es_client().delete(index=self.get_index_name(), id=self.pk)
+        try:
+            self.get_es_client().delete(
+                index=self.get_index_name(), id=self.pk,
+            )
+        except Exception:
+            # Catch failure and reraise with specific exception.
+            raise UnableToDeleteModelFromElasticSearch()
+
         super().save(*args, **kwargs)
 
     @classmethod
@@ -126,8 +139,11 @@ class ESQuerySetMixin:
                 doc['_source'] = model_values
             documents.append(doc)
 
-        bulk(
-            self.model.get_es_client(), documents,
-            index=self.model.get_index_name(),
-            doc_type=self.model.__name__
-        )
+        try:
+            bulk(
+                self.model.get_es_client(), documents,
+                index=self.model.get_index_name(),
+                doc_type=self.model.__name__
+            )
+        except Exception:
+            raise UnableToBulkIndexModelsToElasticSearch()

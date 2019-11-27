@@ -91,3 +91,9 @@ class Author(ESModelBinderMixin, models.Model):
 
         # ... any further field rules
 
+**Removing db model into Elasticsearch**
+
+Removing a model in ElasticSearch happens automatically on model deletion
+these are bound events. This plugin keeps a reference to the current index and
+model pk as identifer and on `.save()` executes a request to ElasticSearch to
+purge it of that models data.
