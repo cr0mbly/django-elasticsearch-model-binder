@@ -14,7 +14,9 @@ Elasticsearch on your machine. The expected configuration for setup within
 django-elasticsearch-model-builder is within your settings for example:
 
 *setup.py*
+
 .. code-block:: python
+
     DJANGO_ES_MODEL_CONFIG = {
         'hosts': [{'host': 'localhost', 'port': 9200}]
     }
@@ -32,6 +34,7 @@ Tieing a model to an elasticsearch index can be done on the fly by adding
 the mixin
 
 .. code-block:: python
+
     class Author(ESModelBinderMixin, models.Model):
         user = models.ForeignKey(
             User, on_delete=models.CASCADE
@@ -51,6 +54,7 @@ its module path directory. this can be overridden by setting the
 `index_name` field in the model:
 
 .. code-block:: python
+
     class Author(ESModelBinderMixin, models.Model):
         index_name ='my-custom-index-name'
 
@@ -70,6 +74,7 @@ If this mapping doesn't suit you or you wish to extend it you can do so
 by overriding the `convert_to_indexable_format` method on the mixin.
 
 .. code-block:: python
+
     class Author(ESModelBinderMixin, models.Model):
 
         def convert_to_indexable_format(self, value):
