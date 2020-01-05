@@ -62,3 +62,24 @@ class TestModelMaintainsStateAcrossDBandES(TestCase):
         )
 
 
+    def test_model_manager_bulk_deletion(self):
+        new_publishing_name = 'Bill Fakeington 2'
+        filtered_queryset = Author.objects.filter(pk=1)
+
+        es_data = Author.get_es_client().get(
+            id=self.author.pk,
+            index=Author.get_index_name(),
+            doc_type=Author.__name__,
+        )
+        self.assertEqual(
+            self.publishing_name, es_data['_source']['publishing_name'],
+        )
+
+        filtered_queryset.delete_from_es()
+
+        with self.assertRaises(NotFoundError):
+            Author.get_es_client().get(
+                id=self.author.pk,
+                index=Author.get_index_name(),
+                doc_type=Author.__name__,
+            )

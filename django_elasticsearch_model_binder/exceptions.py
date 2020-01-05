@@ -13,5 +13,8 @@ class UnableToDeleteModelFromElasticSearch(ElasticSearchFailure):
 class UnableToSaveModelToElasticSearch(ElasticSearchFailure):
     pass
 
-class UnableToBulkIndexModelsToElasticSearch(ElasticSearchFailure):
+class UnableToCastESNominatedFieldException(ElasticSearchFailure):
+    pass
+
+class UnableToBulkIndexModelsToElasticSearch(Exception):
     pass
