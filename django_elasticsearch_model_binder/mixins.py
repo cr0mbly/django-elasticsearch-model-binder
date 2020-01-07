@@ -15,53 +15,36 @@ from django_elasticsearch_model_binder.exceptions import (
     UnableToDeleteModelFromElasticSearch,
     UnableToSaveModelToElasticSearch,
 )
-from django_elasticsearch_model_binder.utils import queryset_iterator
+from django_elasticsearch_model_binder.utils import (
+    get_es_client, queryset_iterator,
+)
 
 
-class ESContollerMixin:
-    """
-    Handles logic for connection to ES instance. breaks out API connection
-    for use in Mixins making use of this class.
-    """
-
-    @classmethod
-    def get_es_client(cls):
-        """
-        Return the elasticsearch client instance, allows implementer to extend
-        mixin here replacing this implementation with one more suited to
-        their use case.
-        """
-        if not hasattr(settings, 'DJANGO_ES_MODEL_CONFIG'):
-            raise ImproperlyConfigured(
-                'DJANGO_ES_MODEL_CONFIG must be defined in app settings'
-            )
-
-        return Elasticsearch(**settings.DJANGO_ES_MODEL_CONFIG)
-
-
-
-
-class ESModelBinderMixin(ESContollerMixin, models.Model):
+class ESModelBinderMixin(models.Model):
     """
     Mixin that binds a models nominated field to an Elasticsearch index.
     Nominated fields will maintain persistency with the models existence
     and configuration within the database.
     """
 
-    index_name = None
+    # Fields to be cached in ES
     es_cached_fields = []
+
+    # Alias postfix values, used to decern write aliases from read.
+    es_index_alias_read_postfix = 'read'
+    es_index_alias_write_postfix = 'write'
 
     class Meta:
         abstract = True
 
     @classmethod
-    def get_index_name(cls):
+    def get_index_base_name(cls):
         """
         Retrieve the model defined index name from self.index_name defaulting
         to generated name based on app module directory and model name.
         """
-        if cls.index_name:
-            return index_name
+        if hasattr(cls, 'index_name'):
+            return cls.index_name
         else:
             return '-'.join(
                 cls.__module__.lower().split('.')
@@ -104,11 +87,10 @@ class ESModelBinderMixin(ESContollerMixin, models.Model):
             )
 
         try:
-            self.get_es_client().index(
-                index=self.get_index_name(),
-                doc_type=self.__class__.__name__,
+            get_es_client().index(
                 id=self.pk,
-                body=document
+                index=self.get_write_alias_name(),
+                body=document,
             )
         except Exception:
             raise UnableToSaveModelToElasticSearch()
@@ -119,8 +101,8 @@ class ESModelBinderMixin(ESContollerMixin, models.Model):
         fields in Elasticsearch.
         """
         try:
-            self.get_es_client().delete(
-                index=self.get_index_name(), id=self.pk,
+            get_es_client().delete(
+                index=self.get_write_alias_name(), id=self.pk,
             )
         except Exception:
             # Catch failure and reraise with specific exception.
@@ -128,21 +110,6 @@ class ESModelBinderMixin(ESContollerMixin, models.Model):
 
         super().save(*args, **kwargs)
 
-
-class ESModelAliasMixin(ESModelBinderMixin):
-    """
-    Mixin binding models to ESIndexes breaks out support for aliasing models.
-    This implementation will setup an Elasticsearch index with two aliases
-    that support zero downtime rebuilds. As defined in the API below these will
-    point to a defined index for the model that itself will contain a mapping
-    of how the nominated models fields should be indexed.
-    """
-
-    es_index_alias_read_postfix = 'read'
-    es_index_alias_write_postfix = 'write'
-
-    class Meta:
-        abstract = True
 
     @staticmethod
     def get_index_mapping():
@@ -154,39 +121,31 @@ class ESModelAliasMixin(ESModelBinderMixin):
         return {'settings': {}, 'mappings': {}}
 
     @classmethod
-    def get_read_alias(cls):
+    def get_read_alias_name(cls):
         """
         Generates a unique alias name using either set explicitly by
         overridding this method or in the default format of a
-        combination of {index_name}-read-{uuid}.
+        combination of {index_name}-read.
         """
-        return (
-            cls.get_index_name() + '-' + cls.es_index_alias_read_postfix
-            + '-' + uuid4().hex
-        )
+        return cls.get_index_base_name() + '-' + cls.es_index_alias_read_postfix
 
     @classmethod
-    def get_write_alias(cls):
+    def get_write_alias_name(cls):
         """
         Generates a unique alias name using either set explicitly by
         overridding this method or in the default format of a
-        combination of {index_name}-write-{uuid}.
+        combination of {index_name}-write.
         """
-        return (
-            cls.get_index_name()
-            + '-' + cls.es_index_alias_write_postfix
-            + '-' + uuid4().hex
-        )
+        return cls.get_index_base_name() + '-' + cls.es_index_alias_write_postfix
 
     @classmethod
     def generate_index(cls):
         """
-        Generates a uniques base index containing how the index should be
-        indexed into elasticsearch this index will be pointed at from the
-        aliases post build.
+        Generates a new index in Elasticsearch for the
+        model returning the index name.
         """
-        index = cls.get_index_name() + '-' + uuid4().hex
-        cls.get_es_client().indices.create(
+        index = cls.get_index_base_name() + '-' + uuid4().hex
+        get_es_client().indices.create(
             index=index, body=cls.get_index_mapping()
         )
         return index
@@ -198,14 +157,16 @@ class ESModelAliasMixin(ESModelBinderMixin):
         from any other indices if present, set remove_existing_aliases to
         disabled this.
         """
-        es_client = cls.get_es_client()
-
         old_indicy_names = []
         if (
             remove_existing_aliases
-            and es_client.indices.exists_alias(name=alias)
+            and get_es_client().indices.exists_alias(name=alias)
         ):
-            old_indicy_names = es_client.indices.get_alias(name=alias).keys()
+            old_indicy_names = (
+                get_es_client()
+                .indices.get_alias(name=alias)
+                .keys()
+            )
 
         alias_updates = [
             {'remove': {'index': indicy, 'alias': alias}}
@@ -213,7 +174,7 @@ class ESModelAliasMixin(ESModelBinderMixin):
         ]
         alias_updates.append({'add': {'index': index, 'alias': alias}})
 
-        es_client.indices.update_aliases(body=alias_updates)
+        get_es_client().indices.update_aliases(body={'actions': alias_updates})
 
     @classmethod
     def rebuild_index(
@@ -231,15 +192,14 @@ class ESModelAliasMixin(ESModelBinderMixin):
         """
         new_indicy = cls.generate_index()
 
-        cls.bind_alias(new_indicy, cls.get_write_alias())
+        cls.bind_alias(new_indicy, cls.get_write_alias_name())
 
         chunked_qs = queryset_iterator(qs_to_rebuild or cls.objects.all())
 
         for qs_chunk in chunked_qs:
             qs_chunk.objects.reindex_into_es()
 
-        cls.bind_alias(new_indicy, cls.get_read_alias())
-
+        cls.bind_alias(new_indicy, cls.get_read_alias_name())
 
 
 class ESQuerySetMixin:
@@ -265,9 +225,8 @@ class ESQuerySetMixin:
 
         try:
             bulk(
-                self.model.get_es_client(), documents,
-                index=self.model.get_index_name(),
-                doc_type=self.model.__name__
+                get_es_client(), documents,
+                index=self.model.get_write_alias_name(),
             )
         except Exception:
             raise UnableToBulkIndexModelsToElasticSearch()
@@ -281,7 +240,6 @@ class ESQuerySetMixin:
             for pk in self.values_list('pk', flat=True)
         ]
         bulk(
-            self.model.get_es_client(), model_documents_to_remove,
-            index=self.model.get_index_name(),
-            doc_type=self.model.__name__,
+            get_es_client(), model_documents_to_remove,
+            index=self.model.get_write_alias_name(),
         )

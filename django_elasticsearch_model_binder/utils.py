@@ -1,6 +1,22 @@
 from gc import collect
 
-from django.core.exceptions import ObjectDoesNotExist
+from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
+from elasticsearch import Elasticsearch
+
+
+def get_es_client():
+    """
+    Return the elasticsearch client instance, allows implementer to extend
+    mixin here replacing this implementation with one more suited to
+    their use case.
+    """
+    if not hasattr(settings, 'DJANGO_ES_MODEL_CONFIG'):
+        raise ImproperlyConfigured(
+            'DJANGO_ES_MODEL_CONFIG must be defined in app settings'
+        )
+
+    return Elasticsearch(**settings.DJANGO_ES_MODEL_CONFIG)
 
 
 def queryset_iterator(queryset, chunk_size=1000):
@@ -23,3 +39,19 @@ def queryset_iterator(queryset, chunk_size=1000):
             pk = row.pk
             yield row
         collect()
+
+
+def initialize_es_model_index(model):
+    """
+    Taking a model utilizing the ESModelBinderMixin mixin, generate the
+    default index and aliases into Elasticsearch, this is useful on first
+    bootup of a new environment so a model has everything it needs to begin
+    piping data to Elasticsearch.
+
+    NOTE: This will just create the corresponging index/aliases there will be
+    no data present in these indexes, call rebuild_index on the model to begin
+    setting up the models data in Elasticsearch.
+    """
+    new_indicy = model.generate_index()
+    model.bind_alias(new_indicy, model.get_write_alias_name())
+    model.bind_alias(new_indicy, model.get_read_alias_name())
