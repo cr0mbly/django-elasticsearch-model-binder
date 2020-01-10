@@ -1,26 +1,22 @@
+from datetime import datetime, date
 from uuid import uuid4
-from datetime import datetime
 
-from django.db.models.manager import Manager
-from django.db import models
-from django.conf import settings
-from django.core.exceptions import ImproperlyConfigured
-from elasticsearch import Elasticsearch
+from django.db.models import Model
 from elasticsearch.helpers import bulk
 
 from django_elasticsearch_model_binder.exceptions import (
-    NominatedFieldDoesNotExistForESIndexingException,
     UnableToBulkIndexModelsToElasticSearch,
     UnableToCastESNominatedFieldException,
     UnableToDeleteModelFromElasticSearch,
     UnableToSaveModelToElasticSearch,
 )
 from django_elasticsearch_model_binder.utils import (
+    build_document_from_model, build_documents_from_queryset,
     get_es_client, queryset_iterator,
 )
 
 
-class ESModelBinderMixin(models.Model):
+class ESModelBinderMixin(Model):
     """
     Mixin that binds a models nominated field to an Elasticsearch index.
     Nominated fields will maintain persistency with the models existence
@@ -52,16 +48,16 @@ class ESModelBinderMixin(models.Model):
             )
 
     @classmethod
-    def convert_to_indexable_format(cls, value):
+    def convert_model_field_to_es_format(cls, value):
         """
         Helper method to cast an incoming value into a format that
         is indexable within ElasticSearch. extend with your own super
         implentation if there are custom types you'd like handled differently.
         """
-        if isinstance(value, models.Model):
+        if isinstance(value, Model):
             return value.pk
-        elif isinstance(value, datetime):
-            return value.strftime('%Y-%M-%d %H:%M:%S')
+        elif isinstance(value, datetime) or isinstance(value, date):
+            return value.strftime('%d-%M-%Y %H:%M:%S')
         else:
             # Catch all try to cast value to string raising
             # an exception explicitly if that fails.
@@ -72,43 +68,46 @@ class ESModelBinderMixin(models.Model):
 
     def save(self, *args, **kwargs):
         """
-        Override model save to index those fields nominated by es_cached_fields
-        storring them in elasticsearch.
+        Override model save to index those fields nominated by
+        es_cached_fields storring them in elasticsearch.
         """
         super().save(*args, **kwargs)
-
-        document = {}
-        for field in self.es_cached_fields:
-            if not hasattr(self, field):
-                raise NominatedFieldDoesNotExistForESIndexingException()
-
-            document[field] = self.convert_to_indexable_format(
-                getattr(self, field)
-            )
 
         try:
             get_es_client().index(
                 id=self.pk,
                 index=self.get_write_alias_name(),
-                body=document,
+                body=build_document_from_model(self),
             )
         except Exception:
-            raise UnableToSaveModelToElasticSearch()
+            raise UnableToSaveModelToElasticSearch(
+                f'Attempted to save/update the {str(self)} related es document '
+                f'from index {self.get_index_base_name}, please check your '
+                f'connection and status of your ES cluster.'
+            )
 
     def delete(self, *args, **kwargs):
         """
         Same as save but in reverse, remove the model instances cached
         fields in Elasticsearch.
         """
+        # We temporarily cache the model pk here so we can delete the model
+        # instance first before we remove from Elasticsearch.
+        author_document_id = self.pk
+
+        super().delete(*args, **kwargs)
+
         try:
             get_es_client().delete(
-                index=self.get_write_alias_name(), id=self.pk,
+                index=self.get_write_alias_name(), id=author_document_id,
             )
         except Exception:
             # Catch failure and reraise with specific exception.
-            raise UnableToDeleteModelFromElasticSearch()
-
-        super().save(*args, **kwargs)
+            raise UnableToDeleteModelFromElasticSearch(
+                f'Attempted to remove {str(self)} related es document '
+                f'from index {self.get_index_base_name}, please check your '
+                f'connection and status of your ES cluster.'
+            )
 
 
     @staticmethod
@@ -127,7 +126,10 @@ class ESModelBinderMixin(models.Model):
         overridding this method or in the default format of a
         combination of {index_name}-read.
         """
-        return cls.get_index_base_name() + '-' + cls.es_index_alias_read_postfix
+        return (
+            cls.get_index_base_name()
+            + '-' + cls.es_index_alias_read_postfix
+        )
 
     @classmethod
     def get_write_alias_name(cls):
@@ -136,7 +138,10 @@ class ESModelBinderMixin(models.Model):
         overridding this method or in the default format of a
         combination of {index_name}-write.
         """
-        return cls.get_index_base_name() + '-' + cls.es_index_alias_write_postfix
+        return (
+            cls.get_index_base_name()
+            + '-' + cls.es_index_alias_write_postfix
+        )
 
     @classmethod
     def generate_index(cls):
@@ -151,17 +156,13 @@ class ESModelBinderMixin(models.Model):
         return index
 
     @classmethod
-    def bind_alias(cls, index, alias, remove_existing_aliases=True):
+    def bind_alias(cls, index, alias):
         """
         Connect an alias to a specified index by default removes alias
-        from any other indices if present, set remove_existing_aliases to
-        disabled this.
+        from any other indices if present.
         """
         old_indicy_names = []
-        if (
-            remove_existing_aliases
-            and get_es_client().indices.exists_alias(name=alias)
-        ):
+        if get_es_client().indices.exists_alias(name=alias):
             old_indicy_names = (
                 get_es_client()
                 .indices.get_alias(name=alias)
@@ -177,27 +178,22 @@ class ESModelBinderMixin(models.Model):
         get_es_client().indices.update_aliases(body={'actions': alias_updates})
 
     @classmethod
-    def rebuild_index(
-        cls, qs_to_rebuild=None, drop_index=False, verbose=False
-    ):
+    def rebuild_es_index(cls, queryset=None):
         """
         Rebuilds the entire ESIndex for the model, utilizes Aliases to
         preserve access to the old index while the new is being built.
 
-         - drop_index optionally deletes the index rendering it
-           unreadable until the index has been rebuilt and the alias
-           switched over.
-         - verbose provides a timestamped output on the estimated runtime
-           of the alias rebuild, useful when rebuilding the index on shell.
+         - queryset - defined models to rebuild, not setting
+           will reindex the entire models table into Elasticsearch.
         """
         new_indicy = cls.generate_index()
 
         cls.bind_alias(new_indicy, cls.get_write_alias_name())
 
-        chunked_qs = queryset_iterator(qs_to_rebuild or cls.objects.all())
+        chunked_qs_generator = queryset_iterator(queryset or cls.objects.all())
 
-        for qs_chunk in chunked_qs:
-            qs_chunk.objects.reindex_into_es()
+        for qs_chunk in chunked_qs_generator:
+            qs_chunk.reindex_into_es()
 
         cls.bind_alias(new_indicy, cls.get_read_alias_name())
 
@@ -210,22 +206,11 @@ class ESQuerySetMixin:
 
     def reindex_into_es(self):
         """
-        Bulk reindex all nominated fields into elasticsearch
+        Generate and bulk reindex all nominated fields into elasticsearch
         """
-        queryset_values = self.values(
-            *list(set(['pk', *self.model.es_cached_fields]))
-        )
-
-        documents = []
-        for model_values in queryset_values:
-            doc = {'_id': model_values['pk']}
-            if 'pk' not in self.model.es_cached_fields:
-                doc['_source'] = model_values
-            documents.append(doc)
-
         try:
             bulk(
-                get_es_client(), documents,
+                get_es_client(), build_documents_from_queryset(self).values(),
                 index=self.model.get_write_alias_name(),
             )
         except Exception:
