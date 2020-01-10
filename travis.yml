@@ -1,0 +1,12 @@
+language: python
+python:
+  - 3.4
+  - 3.5
+install:
+- pip install tox
+script:
+  - tox
+services:
+  - elasticsearch
+before_script:
+  - sleep 10

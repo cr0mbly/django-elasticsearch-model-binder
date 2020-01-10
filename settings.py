@@ -25,6 +25,6 @@ DATABASES = {
 
 DJANGO_ES_MODEL_CONFIG = {
     'hosts': [
-        {'host': 'localhost', 'port': 9632}
+        {'host': 'localhost', 'port': 9200}
     ]
 }
