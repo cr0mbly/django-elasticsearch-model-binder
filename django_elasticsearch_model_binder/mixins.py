@@ -184,7 +184,7 @@ class ESModelBinderMixin(Model):
         preserve access to the old index while the new is being built.
 
          - queryset - defined models to rebuild, not setting
-           will reindex the entire models table into Elasticsearch.
+           will re-index the entire models table into Elasticsearch.
         """
         new_indicy = cls.generate_index()
 
