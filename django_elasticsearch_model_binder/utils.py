@@ -95,7 +95,7 @@ def build_documents_from_queryset(queryset) -> Dict[int, dict]:
     for field_class in queryset.model.es_cached_extra_fields:
         extra_field_class = field_class(queryset.model)
         custom_field_values = (
-            extra_field_class.generate_model_map(documents.keys())
+            extra_field_class.custom_model_field_map(documents.keys())
         )
 
         for pk in documents.keys():
@@ -134,11 +134,24 @@ def build_document_from_model(model) -> dict:
     for field_class in model.es_cached_extra_fields:
         extra_field_class = field_class(model)
         custom_field_value = (
-            extra_field_class.generate_model_map([model.pk])[model.pk]
+            extra_field_class.custom_model_field_map([model.pk])[model.pk]
         )
         document[extra_field_class.get_custom_field_name()] = custom_field_value
 
     return document
+
+
+def get_index_names_from_alias(alias: str) -> List[str]:
+    """
+    Return list of indices tied to a alias
+    """
+    old_indicy_names = (
+        get_es_client()
+        .indices.get_alias(name=alias)
+        .keys()
+    )
+
+    return [indicy for indicy in old_indicy_names]
 
 
 class ExtraModelFieldBase:
@@ -150,7 +163,7 @@ class ExtraModelFieldBase:
         self.model = model
 
     @classmethod
-    def generate_model_map(cls, model_pks: List[int]) -> Dict[int, Any]:
+    def custom_model_field_map(cls, model_pks: List[int]) -> Dict[int, Any]:
         """
         Method to bulk generate custom field values for Elasticsearch model
         indexing. Taking a list of model pks override this method returning a

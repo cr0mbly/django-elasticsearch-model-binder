@@ -2,7 +2,7 @@ from django.test import TestCase
 from elasticsearch.exceptions import NotFoundError
 
 from django_elasticsearch_model_binder.utils import (
-    get_es_client, initialize_es_model_index
+    get_es_client, initialize_es_model_index, get_index_names_from_alias,
 )
 from tests.test_app.models import Author, User
 
@@ -23,7 +23,7 @@ class ElasticSearchBaseTest(TestCase):
         get_es_client().indices.delete('*')
 
 
-class TestElasticSearchAliasGeneration(ElasticSearchBaseTest):
+class TestElasticSearchAliasAndIndexGeneration(ElasticSearchBaseTest):
     def test_alias_binding_to_model(self):
         # Override setUp ES setup.
         get_es_client().indices.delete('*')
@@ -42,6 +42,38 @@ class TestElasticSearchAliasGeneration(ElasticSearchBaseTest):
             get_es_client().indices
             .exists_alias(index=new_index, name=read_alias_name)
         )
+
+    def test_rebuild_optionally_drops_old_index(self):
+        Author.rebuild_es_index()
+
+        old_index = get_index_names_from_alias(
+            Author.get_read_alias_name()
+        )[0]
+
+        Author.rebuild_es_index()
+
+        # Assert that rebuilding the full index wipes
+        # the old index on completion.
+        with self.assertRaises(NotFoundError):
+            get_es_client().indices.get(old_index)
+
+        updated_old_index = get_index_names_from_alias(
+            Author.get_read_alias_name()
+        )[0]
+
+        Author.rebuild_es_index(drop_old_index=False)
+
+        updated_old_es_index_data = get_es_client().indices.get(
+            updated_old_index
+        )
+        latest_index = get_index_names_from_alias(
+            Author.get_read_alias_name()
+        )[0]
+
+        # Assert that a full index rebuild with drop_old_index disabled keeps
+        # the original index, while transfering over the aliases.
+        self.assertIsNotNone(updated_old_es_index_data)
+        self.assertNotEqual(updated_old_index, latest_index)
 
 
 class TestModelMaintainsStateAcrossDBandES(ElasticSearchBaseTest):
@@ -152,4 +184,17 @@ class TestModelMaintainsStateAcrossDBandES(ElasticSearchBaseTest):
         es_data = get_es_client().get(
             id=self.user.pk, index=User.get_read_alias_name(),
         )
-        self.assertIsNotNone(es_data['_source']['unique_identifer'])
+        unique_identifer = es_data['_source']['unique_identifer']
+        # Assert a save event includes custom field values
+        self.assertIsNotNone(unique_identifer)
+
+        User.objects.filter(pk=self.user.pk).reindex_into_es()
+        updated_es_data = get_es_client().get(
+            id=self.user.pk, index=User.get_read_alias_name(),
+        )
+
+        # Assert a full queryset rebuild will re-index custom fields.
+        self.assertIsNotNone(updated_es_data['_source']['unique_identifer'])
+        self.assertNotEqual(
+            unique_identifer, updated_es_data['_source']['unique_identifer'],
+        )

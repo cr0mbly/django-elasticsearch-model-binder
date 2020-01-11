@@ -12,7 +12,7 @@ from django_elasticsearch_model_binder.exceptions import (
 )
 from django_elasticsearch_model_binder.utils import (
     build_document_from_model, build_documents_from_queryset,
-    get_es_client, queryset_iterator,
+    get_es_client, get_index_names_from_alias, queryset_iterator,
 )
 
 
@@ -23,7 +23,7 @@ class ESModelBinderMixin(Model):
     and configuration within the database.
     """
 
-    # Fields to be cached in ES
+    # Fields to be cached in ES.
     es_cached_model_fields = []
 
     # nonfields containing methods for custom field insertion.
@@ -165,11 +165,7 @@ class ESModelBinderMixin(Model):
         """
         old_indicy_names = []
         if get_es_client().indices.exists_alias(name=alias):
-            old_indicy_names = (
-                get_es_client()
-                .indices.get_alias(name=alias)
-                .keys()
-            )
+            old_indicy_names = get_index_names_from_alias(alias)
 
         alias_updates = [
             {'remove': {'index': indicy, 'alias': alias}}
@@ -180,14 +176,19 @@ class ESModelBinderMixin(Model):
         get_es_client().indices.update_aliases(body={'actions': alias_updates})
 
     @classmethod
-    def rebuild_es_index(cls, queryset=None):
+    def rebuild_es_index(cls, queryset=None, drop_old_index=True):
         """
         Rebuilds the entire ESIndex for the model, utilizes Aliases to
         preserve access to the old index while the new is being built.
 
-         - queryset - defined models to rebuild, not setting
-           will re-index the entire models table into Elasticsearch.
+        By default will rebuild the entire database table in Elasticsearch,
+        define a queryset to only rebuild a slice of this.
+
+        Set drop_old_index to False if you want to preserve the old index for
+        future use, this will no longer have the aliases tied to it but will
+        still be accessable through the Elasticsearch API.
         """
+        old_indicy = get_index_names_from_alias(cls.get_read_alias_name())[0]
         new_indicy = cls.generate_index()
 
         cls.bind_alias(new_indicy, cls.get_write_alias_name())
@@ -199,6 +200,9 @@ class ESModelBinderMixin(Model):
 
         cls.bind_alias(new_indicy, cls.get_read_alias_name())
 
+        if drop_old_index:
+            get_es_client().indices.delete(old_indicy)
+
 
 class ESQuerySetMixin:
     """
@@ -208,7 +212,7 @@ class ESQuerySetMixin:
 
     def reindex_into_es(self):
         """
-        Generate and bulk reindex all nominated fields into elasticsearch
+        Generate and bulk re-index all nominated fields into elasticsearch
         """
         try:
             bulk(

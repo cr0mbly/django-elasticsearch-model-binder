@@ -46,7 +46,91 @@ the mixin
         # Fields to be picked up and cached in model
         es_cached_model_fields = ['publishing_name', 'user']
 
-**Setting index name.**
+
+**Casting db model fields into Elasticsearch format**
+
+This plugin works with a principle that fields should be ready to be serialized
+into Elasticsearch data structures like `sets` for instance will fail if you
+try to index them into Elasticsearch. By default this plugin casts
+the following base types to Elasticsearch compatible values.
+
+- models.Model -> integer containing the models pk
+- datetime.datetime ->  string in the format 'YYYY-MM-DD HH:MM:SS'
+- all other values -> str(value) (attempt to cast all other values)
+
+
+If this mapping doesn't suit you or you wish to extend it you can do so
+by overriding the `convert_to_indexable_format` method on the mixin.
+
+.. code-block:: python
+
+    class Author(ESModelBinderMixin, models.Model):
+
+        def convert_to_indexable_format(self, value):
+            if isinstance(value, float):
+                # Round value for uniform integer value
+                return round(value)
+
+            # ... any further field rules
+
+
+**Setting non model fields on index**
+
+By default `es_cached_model_fields` will only support database fields for
+indexing this is for performance reasons where often you might want to index a
+complex piece of data that may take a while to generate over larger database
+tables. To get around this this plugin supports a different approach for any
+fields that aren't stored directly on this model. To this end we make use of
+the `ExtraModelFieldBase` class to define a resolver for a custom field that
+will work over larger data-sets in way that can be made more efficient as your
+data-set grows and requirements change. For example:
+
+
+.. code-block:: python
+
+    from django_elasticsearch_model_binder import ExtraModelFieldBase
+
+
+    class UniqueIdentiferField(ExtraModelFieldBase):
+        # Name of the custom field we want indexed for the model.
+        field_name = 'total_number_of_duplicate_names'
+
+        @classmethod
+        def custom_model_field_map(cls, model_pks):
+            """
+            Generate map of number of duplicate first names per model.
+            """
+            values = (
+                cls.objects
+                .filter(pk__in=model_pks)
+                .values_list('pk', 'first_name')
+            )
+
+            name_count_map = defaultdict(int)
+            for _, name in values:
+                name_count_map[name] += 1
+
+            # Return map of model pk to value we want
+            # indexed into Elasticsearch
+            return {
+                pk: name_count_map[name]
+                for pk, name in values
+            }
+
+    class User(ESModelBinderMixin, models.Model):
+        first_name = model.CharField()
+        es_cached_extra_fields = (UniqueIdentiferField,)
+
+
+This will result in an index being created for the user model with a single
+custom field per model document set too
+
+.. code-block:: python
+
+    `{total_number_of_duplicate_names: <int>}`
+
+
+**Setting index name**
 
 This example is fairly basic it will create an Elasticsearch index generated
 with an index name comprised of the model class name and
@@ -64,6 +148,7 @@ generated with a name reflecting the modules path and model name e.g.
 .. code-block:: python
 
   <module-path>-<model-name>-<unique-uuid>
+
 
 **Default Aliases**
 
@@ -92,31 +177,6 @@ Will generate aliases in the format of:
 Or define your own way by overriding the default
 `get_read_alias_name`/`get_write_alias_name`
 
-**Casting db model fields into Elasticsearch format**
-
-This plugin works with a principle that fields should be ready to be serialized
-into Elasticsearch data structures like `sets` for instance will fail if you
-try to index them into Elasticsearch. By default this plugin casts
-the following base types to Elasticsearch compatible values.
-
-- models.Model -> integer containing the models pk
-- datetime.datetime ->  string in the format 'YYYY-MM-DD HH:MM:SS'
-- all other values -> str(value) (attempt to cast all other values)
-
-
-If this mapping doesn't suit you or you wish to extend it you can do so
-by overriding the `convert_to_indexable_format` method on the mixin.
-
-.. code-block:: python
-
-    class Author(ESModelBinderMixin, models.Model):
-
-        def convert_to_indexable_format(self, value):
-            if isinstance(value, float):
-                # Round value for uniform integer value
-                return round(value)
-
-            # ... any further field rules
 
 **Saving/Removing db model in Elasticsearch**
 
@@ -188,3 +248,20 @@ This can be run from shell or any kind of automated task by running:
     # Full table rebuild of the Author model.
     >>> sliced_queryset = Author.objects.filter(pk__lt=100)
     >>> Author.rebuild_es_index(queryset=sliced_queryset)
+
+
+**Setting indexable format**
+
+Indexes are only rebuilt sharding accoring to configuration on a full index
+rebuild `rebuild_es_index`. To alter how the index is searched with
+Elasticsearch you'll need to override the `get_index_mapping`. By default this
+is set to an empty implementation e.g.
+
+.. code-block:: python
+
+    @classmethod
+    def get_index_mapping(cls):
+        return {'settings': {}, 'mappings': {}}
+
+But you can extend this with any mapping you'd like for the
+fields being indexed.
