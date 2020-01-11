@@ -1,3 +1,6 @@
-from .mixins import ESModelBinderMixin
+from django_elasticsearch_model_binder.mixins import (
+    ESModelBinderMixin, ESQuerySetMixin
+)
+from django_elasticsearch_model_binder.utils import ExtraModelFieldBase
 
-__all__ = ['ESModelBinderMixin']
+__all__ = ['ESModelBinderMixin', 'ESQuerySetMixin', 'ExtraModelFieldBase']

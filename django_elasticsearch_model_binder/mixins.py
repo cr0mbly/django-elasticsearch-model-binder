@@ -1,4 +1,3 @@
-from typing import Dict, Any
 from datetime import datetime, date
 from uuid import uuid4
 
@@ -15,25 +14,6 @@ from django_elasticsearch_model_binder.utils import (
     build_document_from_model, build_documents_from_queryset,
     get_es_client, queryset_iterator,
 )
-
-
-class ExtraModelFieldBase:
-    """
-    Base contract class to allow extra fields not present on the model to be
-    indexed.
-    """
-
-    def __init__(self, model):
-        self.model = model
-
-    def generate_model_map(queryset) -> Dict[int, Any]:
-        """
-
-        """
-        raise NotImplementedError(
-            'Field requires implementation to include into '
-            'related model index.'
-        )
 
 
 class ESModelBinderMixin(Model):
@@ -57,7 +37,7 @@ class ESModelBinderMixin(Model):
         abstract = True
 
     @classmethod
-    def get_index_base_name(cls):
+    def get_index_base_name(cls) -> str:
         """
         Retrieve the model defined index name from self.index_name defaulting
         to generated name based on app module directory and model name.
@@ -67,7 +47,7 @@ class ESModelBinderMixin(Model):
         else:
             return '-'.join(
                 cls.__module__.lower().split('.')
-                + [cls.__class__.__name__.lower()]
+                + [cls.__name__.lower()]
             )
 
     @classmethod
@@ -105,7 +85,7 @@ class ESModelBinderMixin(Model):
         except Exception:
             raise UnableToSaveModelToElasticSearch(
                 f'Attempted to save/update the {str(self)} related es document '
-                f'from index {self.get_index_base_name}, please check your '
+                f'from index {self.get_index_base_name()}, please check your '
                 f'connection and status of your ES cluster.'
             )
 
@@ -128,12 +108,12 @@ class ESModelBinderMixin(Model):
             # Catch failure and reraise with specific exception.
             raise UnableToDeleteModelFromElasticSearch(
                 f'Attempted to remove {str(self)} related es document '
-                f'from index {self.get_index_base_name}, please check your '
+                f'from index {self.get_index_base_name()}, please check your '
                 f'connection and status of your ES cluster.'
             )
 
     @staticmethod
-    def get_index_mapping():
+    def get_index_mapping() -> dict:
         """
         Stub mapping of how the index should be created, override this with
         the specific implementation of what fields should be searchable
@@ -142,7 +122,7 @@ class ESModelBinderMixin(Model):
         return {'settings': {}, 'mappings': {}}
 
     @classmethod
-    def get_read_alias_name(cls):
+    def get_read_alias_name(cls) -> str:
         """
         Generates a unique alias name using either set explicitly by
         overridding this method or in the default format of a
@@ -154,7 +134,7 @@ class ESModelBinderMixin(Model):
         )
 
     @classmethod
-    def get_write_alias_name(cls):
+    def get_write_alias_name(cls) -> str:
         """
         Generates a unique alias name using either set explicitly by
         overridding this method or in the default format of a
@@ -166,7 +146,7 @@ class ESModelBinderMixin(Model):
         )
 
     @classmethod
-    def generate_index(cls):
+    def generate_index(cls) -> str:
         """
         Generates a new index in Elasticsearch for the
         model returning the index name.
@@ -178,7 +158,7 @@ class ESModelBinderMixin(Model):
         return index
 
     @classmethod
-    def bind_alias(cls, index, alias):
+    def bind_alias(cls, index: str, alias: str):
         """
         Connect an alias to a specified index by default removes alias
         from any other indices if present.

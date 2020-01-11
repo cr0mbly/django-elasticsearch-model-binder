@@ -1,3 +1,5 @@
+from typing import Dict, List, Any
+
 from django.conf import settings
 from django.core.exceptions import (
     ImproperlyConfigured, ObjectDoesNotExist, FieldError,
@@ -59,7 +61,7 @@ def initialize_es_model_index(model):
     model.bind_alias(new_indicy, model.get_read_alias_name())
 
 
-def build_documents_from_queryset(queryset):
+def build_documents_from_queryset(queryset) -> Dict[int, dict]:
     """
     Generate a dictionary map of ES fields representing the
     nominated model fields to be cached in the model index.
@@ -70,10 +72,11 @@ def build_documents_from_queryset(queryset):
         )
     except FieldError:
         raise NominatedFieldDoesNotExistForESIndexingException(
-            f'One of the fields defined in es_cached_model_fields does not exist on '
-            f'the model {queryset.model.__class__.__name__} only valid fields '
-            f'can be indexed with es_cached_model_fields, for any extra fields '
-            f'look at es_cached_extra_fields for inclusion into this index'
+            f'One of the fields defined in es_cached_model_fields does '
+            f'not exist on the model {queryset.model.__class__.__name__} only '
+            f'valid fields can be indexed with es_cached_model_fields, for any '
+            f'extra fields look at es_cached_extra_fields for inclusion into '
+            f'this index'
         )
 
     documents = {
@@ -92,18 +95,19 @@ def build_documents_from_queryset(queryset):
     for field_class in queryset.model.es_cached_extra_fields:
         extra_field_class = field_class(queryset.model)
         custom_field_values = (
-            extra_field_class.generate_model_map(queryset)
+            extra_field_class.generate_model_map(documents.keys())
         )
 
         for pk in documents.keys():
+            field_name = extra_field_class.get_custom_field_name()
             documents[pk]['_source'].update({
-                extra_field_class.field_name: custom_field_values[pk]
+                field_name: custom_field_values[pk]
             })
 
     return documents
 
 
-def build_document_from_model(model):
+def build_document_from_model(model) -> dict:
     """
     Build ES cached fields for individual model
     returning built document for indexing.
@@ -132,6 +136,38 @@ def build_document_from_model(model):
         custom_field_value = (
             extra_field_class.generate_model_map([model.pk])[model.pk]
         )
-        document[extra_field_class.field_name] = custom_field_value
+        document[extra_field_class.get_custom_field_name()] = custom_field_value
 
     return document
+
+
+class ExtraModelFieldBase:
+    """
+    Base contract class to allow extra fields not present on the model to be
+    indexed.
+    """
+    def __init__(self, model):
+        self.model = model
+
+    @classmethod
+    def generate_model_map(cls, model_pks: List[int]) -> Dict[int, Any]:
+        """
+        Method to bulk generate custom field values for Elasticsearch model
+        indexing. Taking a list of model pks override this method returning a
+        dictionary containing the model pk as key and the value you want
+        attributed per model, on model indexing this will be included in the
+        index along with the other nominated model field values.
+        """
+        raise NotImplementedError(
+            'Field requires implementation to include into '
+            'related model index.'
+        )
+
+    @classmethod
+    def get_custom_field_name(cls) -> str:
+        if not hasattr(cls, 'field_name'):
+            raise NotImplementedError(
+                'Custom field_name must be set to map to map to model index.'
+            )
+
+        return cls.field_name

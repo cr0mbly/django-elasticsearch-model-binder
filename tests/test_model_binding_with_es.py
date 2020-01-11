@@ -1,5 +1,5 @@
-from elasticsearch.exceptions import NotFoundError
 from django.test import TestCase
+from elasticsearch.exceptions import NotFoundError
 
 from django_elasticsearch_model_binder.utils import (
     get_es_client, initialize_es_model_index
@@ -13,6 +13,7 @@ class ElasticSearchBaseTest(TestCase):
         Instantiate base ES config, generates model index and aliases.
         """
         initialize_es_model_index(Author)
+        initialize_es_model_index(User)
 
     def tearDown(self):
         """
@@ -146,3 +147,9 @@ class TestModelMaintainsStateAcrossDBandES(ElasticSearchBaseTest):
         self.assertEqual(
             alternative_author.pk, int(author_2_es_data['_id']),
         )
+
+    def test_custom_fields_can_be_indexed(self):
+        es_data = get_es_client().get(
+            id=self.user.pk, index=User.get_read_alias_name(),
+        )
+        self.assertIsNotNone(es_data['_source']['unique_identifer'])
