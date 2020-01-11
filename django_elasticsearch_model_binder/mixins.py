@@ -1,3 +1,4 @@
+from typing import Dict, Any
 from datetime import datetime, date
 from uuid import uuid4
 
@@ -16,6 +17,25 @@ from django_elasticsearch_model_binder.utils import (
 )
 
 
+class ExtraModelFieldBase:
+    """
+    Base contract class to allow extra fields not present on the model to be
+    indexed.
+    """
+
+    def __init__(self, model):
+        self.model = model
+
+    def generate_model_map(queryset) -> Dict[int, Any]:
+        """
+
+        """
+        raise NotImplementedError(
+            'Field requires implementation to include into '
+            'related model index.'
+        )
+
+
 class ESModelBinderMixin(Model):
     """
     Mixin that binds a models nominated field to an Elasticsearch index.
@@ -24,7 +44,10 @@ class ESModelBinderMixin(Model):
     """
 
     # Fields to be cached in ES
-    es_cached_fields = []
+    es_cached_model_fields = []
+
+    # nonfields containing methods for custom field insertion.
+    es_cached_extra_fields = []
 
     # Alias postfix values, used to decern write aliases from read.
     es_index_alias_read_postfix = 'read'
@@ -63,13 +86,13 @@ class ESModelBinderMixin(Model):
             # an exception explicitly if that fails.
             try:
                 return str(value)
-            except Exception:
-                raise UnableToCastESNominatedFieldException()
+            except Exception as e:
+                raise UnableToCastESNominatedFieldException(e)
 
     def save(self, *args, **kwargs):
         """
         Override model save to index those fields nominated by
-        es_cached_fields storring them in elasticsearch.
+        es_cached_model_fields storring them in elasticsearch.
         """
         super().save(*args, **kwargs)
 
@@ -108,7 +131,6 @@ class ESModelBinderMixin(Model):
                 f'from index {self.get_index_base_name}, please check your '
                 f'connection and status of your ES cluster.'
             )
-
 
     @staticmethod
     def get_index_mapping():
@@ -212,9 +234,10 @@ class ESQuerySetMixin:
             bulk(
                 get_es_client(), build_documents_from_queryset(self).values(),
                 index=self.model.get_write_alias_name(),
+                doc_type='_doc',
             )
-        except Exception:
-            raise UnableToBulkIndexModelsToElasticSearch()
+        except Exception as e:
+            raise UnableToBulkIndexModelsToElasticSearch(e)
 
     def delete_from_es(self):
         """
@@ -227,4 +250,5 @@ class ESQuerySetMixin:
         bulk(
             get_es_client(), model_documents_to_remove,
             index=self.model.get_write_alias_name(),
+            doc_type='_doc'
         )

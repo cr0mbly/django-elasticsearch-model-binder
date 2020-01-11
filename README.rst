@@ -44,7 +44,7 @@ the mixin
         )
 
         # Fields to be picked up and cached in model
-        es_cached_fields = ['publishing_name', 'user']
+        es_cached_model_fields = ['publishing_name', 'user']
 
 **Setting index name.**
 

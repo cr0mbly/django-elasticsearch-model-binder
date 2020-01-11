@@ -14,6 +14,6 @@ class Author(ESModelBinderMixin, models.Model):
     publishing_name = models.CharField(max_length=25, blank=True, null=True)
     age = models.IntegerField()
 
-    es_cached_fields = ['publishing_name', 'user']
+    es_cached_model_fields = ['publishing_name', 'user']
 
     objects = ESEnabledQuerySet.as_manager()

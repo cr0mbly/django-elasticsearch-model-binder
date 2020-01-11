@@ -66,25 +66,39 @@ def build_documents_from_queryset(queryset):
     """
     try:
         queryset_values = queryset.values(
-            *list(set(['pk', *queryset.model.es_cached_fields]))
+            *list(set(['pk', *queryset.model.es_cached_model_fields]))
         )
     except FieldError:
         raise NominatedFieldDoesNotExistForESIndexingException(
-            f'One of the fields defined in es_cached_fields does not exist on '
+            f'One of the fields defined in es_cached_model_fields does not exist on '
             f'the model {queryset.model.__class__.__name__} only valid fields '
-            f'can be indexed into this index. e.g. \n'
-            f'{queryset.model._meta.fields}'
+            f'can be indexed with es_cached_model_fields, for any extra fields '
+            f'look at es_cached_extra_fields for inclusion into this index'
         )
 
-    documents = {}
+    documents = {
+        pk: {'_id': pk, '_source': {}}
+        for pk in queryset.values_list('pk', flat=True)
+    }
+
+    # Generate nominated fields for document inclusion off model.
     for model_values in queryset_values:
-        doc = {'_id': model_values['pk']}
-        if 'pk' not in queryset.model.es_cached_fields:
-            doc['_source'] = {
-                k: queryset.model.convert_model_field_to_es_format(v)
-                for k, v in model_values.items()
-            }
-        documents[model_values['pk']] = doc
+        documents[model_values['pk']]['_source'] = {
+            k: queryset.model.convert_model_field_to_es_format(v)
+            for k, v in model_values.items()
+        }
+
+    # Generate and bulk resolve custom fields for document.
+    for field_class in queryset.model.es_cached_extra_fields:
+        extra_field_class = field_class(queryset.model)
+        custom_field_values = (
+            extra_field_class.generate_model_map(queryset)
+        )
+
+        for pk in documents.keys():
+            documents[pk]['_source'].update({
+                extra_field_class.field_name: custom_field_values[pk]
+            })
 
     return documents
 
@@ -96,16 +110,28 @@ def build_document_from_model(model):
     """
     document = {}
     model_fields = [f.name for f in model._meta.fields]
-    for field in model.es_cached_fields:
+
+    # Generate index fields based on defined model fields.
+    for field in model.es_cached_model_fields:
         if field not in model_fields:
             raise NominatedFieldDoesNotExistForESIndexingException(
                 f'field {field} does not exist on model '
                 f'{model.__class__.__name__} only valid model fields can be '
-                f'indexed. valid fields include: \n'
-                f'{model._meta.fields}'
+                f'indexed. For any extra fields look at es_cached_extra_fields '
+                f'for inclusion into this index'
             )
 
         document[field] = model.convert_model_field_to_es_format(
             getattr(model, field)
         )
+
+    # Generate any custom fields not present on the model,
+    # combining with those nominated on the model.
+    for field_class in model.es_cached_extra_fields:
+        extra_field_class = field_class(model)
+        custom_field_value = (
+            extra_field_class.generate_model_map([model.pk])[model.pk]
+        )
+        document[extra_field_class.field_name] = custom_field_value
+
     return document
