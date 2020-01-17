@@ -84,9 +84,11 @@ class ESModelBinderMixin(Model):
             )
         except Exception:
             raise UnableToSaveModelToElasticSearch(
-                f'Attempted to save/update the {str(self)} related es document '
-                f'from index {self.get_index_base_name()}, please check your '
-                f'connection and status of your ES cluster.'
+                'Attempted to save/update the {} related es document '
+                'from index {}, please check your '
+                'connection and status of your ES cluster.'.format(
+                    str(self), self.get_index_base_name()
+                )
             )
 
     def delete(self, *args, **kwargs):
@@ -107,9 +109,11 @@ class ESModelBinderMixin(Model):
         except Exception:
             # Catch failure and reraise with specific exception.
             raise UnableToDeleteModelFromElasticSearch(
-                f'Attempted to remove {str(self)} related es document '
-                f'from index {self.get_index_base_name()}, please check your '
-                f'connection and status of your ES cluster.'
+                'Attempted to remove {} related es document '
+                'from index {}, please check your '
+                'connection and status of your ES cluster.'.format(
+                    str(self), self.get_index_base_name()
+                )
             )
 
     @staticmethod

@@ -78,11 +78,11 @@ def build_documents_from_queryset(queryset) -> Dict[int, dict]:
         )
     except FieldError:
         raise NominatedFieldDoesNotExistForESIndexingException(
-            f'One of the fields defined in es_cached_model_fields does '
-            f'not exist on the model {queryset.model.__class__.__name__} only '
-            f'valid fields can be indexed with es_cached_model_fields, for any '
-            f'extra fields look at es_cached_extra_fields for inclusion into '
-            f'this index'
+            'One of the fields defined in es_cached_model_fields does '
+            'not exist on the model {} only '
+            'valid fields can be indexed with es_cached_model_fields, for any '
+            'extra fields look at es_cached_extra_fields for inclusion into '
+            'this index'.format(queryset.model.__class__.__name__)
         )
 
     documents = {
@@ -125,10 +125,12 @@ def build_document_from_model(model) -> dict:
     for field in model.es_cached_model_fields:
         if field not in model_fields:
             raise NominatedFieldDoesNotExistForESIndexingException(
-                f'field {field} does not exist on model '
-                f'{model.__class__.__name__} only valid model fields can be '
-                f'indexed. For any extra fields look at es_cached_extra_fields '
-                f'for inclusion into this index'
+                'field {} does not exist on model '
+                '{} only valid model fields can be '
+                'indexed. For any extra fields look at es_cached_extra_fields '
+                'for inclusion into this index'.format(
+                    field, model.__class__.__name__
+                )
             )
 
         document[field] = model.convert_model_field_to_es_format(
