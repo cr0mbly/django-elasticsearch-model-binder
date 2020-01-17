@@ -14,5 +14,5 @@ before_install:
   - sudo apt-get update && sudo apt-get install elasticsearch -y
   - sudo -i service elasticsearch restart
 
-  before_script:
+before_script:
   - wget -q --waitretry=1 --retry-connrefused -T 100 -O - http://127.0.0.1:9200
