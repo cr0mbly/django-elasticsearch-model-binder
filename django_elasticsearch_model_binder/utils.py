@@ -73,9 +73,10 @@ def build_documents_from_queryset(queryset) -> Dict[int, dict]:
     nominated model fields to be cached in the model index.
     """
     try:
-        queryset_values = queryset.values(
-            *list(set(['pk', *queryset.model.es_cached_model_fields]))
-        )
+        field_list = queryset.model.es_cached_model_fields
+        if 'pk' not in field_list:
+            field_list.append('pk')
+        queryset_values = queryset.values(*field_list)
     except FieldError:
         raise NominatedFieldDoesNotExistForESIndexingException(
             'One of the fields defined in es_cached_model_fields does '
@@ -86,8 +87,8 @@ def build_documents_from_queryset(queryset) -> Dict[int, dict]:
         )
 
     documents = {
-        pk: {'_id': pk, '_source': {}}
-        for pk in queryset.values_list('pk', flat=True)
+        model_values['pk']: {'_id': model_values['pk'], '_source': {}}
+        for model_values in queryset_values
     }
 
     # Generate nominated fields for document inclusion off model.
@@ -123,7 +124,7 @@ def build_document_from_model(model) -> dict:
 
     # Generate index fields based on defined model fields.
     for field in model.es_cached_model_fields:
-        if field not in model_fields:
+        if field not in model_fields and field != 'pk':
             raise NominatedFieldDoesNotExistForESIndexingException(
                 'field {} does not exist on model '
                 '{} only valid model fields can be '
