@@ -1,11 +1,25 @@
 language: python
-python:
-  - 3.4
-  - 3.5
+
+python: 3.5
+
+matrix:
+  include:
+    - env: TOX_ENV=py36-django-111-es6
+      python: 3.5
+    - env: TOX_ENV=py36-django-111-es6
+      python: 3.4
+
 install:
 - pip install tox
-script:
-  - tox
+
+
+script: tox -e $TOX_ENV
+
+cache: pip
+
+env:
+  global:
+    - ES_APT_URL=https://artifacts.elastic.co/packages/7.x/apt
 
 before_install:
   - wget -qO - https://packages.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
