@@ -5,6 +5,7 @@ from django.core.exceptions import (
     ImproperlyConfigured, ObjectDoesNotExist, FieldError,
 )
 from elasticsearch import Elasticsearch
+from elasticsearch.exceptions import NotFoundError
 
 from django_elasticsearch_model_binder.exceptions import (
     NominatedFieldDoesNotExistForESIndexingException,
@@ -56,9 +57,14 @@ def initialize_es_model_index(model):
     no data present in these indexes, call rebuild_index on the model to begin
     setting up the models data in Elasticsearch.
     """
-    new_indicy = model.generate_index()
-    model.bind_alias(new_indicy, model.get_write_alias_name())
-    model.bind_alias(new_indicy, model.get_read_alias_name())
+    try:
+        get_index_names_from_alias(model.get_write_alias_name())
+    except NotFoundError:
+        # Only create a new index when we can't find a alias -> index
+        # relationship for this model.
+        new_indicy = model.generate_index()
+        model.bind_alias(new_indicy, model.get_write_alias_name())
+        model.bind_alias(new_indicy, model.get_read_alias_name())
 
 
 def build_documents_from_queryset(queryset) -> Dict[int, dict]:

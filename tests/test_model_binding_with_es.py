@@ -162,7 +162,6 @@ class TestModelMaintainsStateAcrossDBandES(ElasticSearchBaseTest):
 
         # Clear and preform a full ES rebuild. Ignores setUp
         # so we can start fresh.
-        get_es_client().indices.delete('*')
         Author.rebuild_es_index()
 
         author_1_es_data = get_es_client().get(
