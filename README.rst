@@ -2,6 +2,9 @@
 Django Elasticsearch Model Binder
 =================================
 
+.. image:: https://travis-ci.com/cr0mbly/django-elasticsearch-model-builder.svg?token=WSHb2ssbuqzAyoqCvdCs&branch=master
+    :target: https://travis-ci.com/cr0mbly/django-elasticsearch-model-builder
+
 Plugin for a Django/Elasticsearch paired environment that aligns CRUD
 operations within Django with the related indexes that are tied to the models
 that they build.
