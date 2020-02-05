@@ -48,7 +48,7 @@ def queryset_iterator(queryset, chunk_size=1000):
 
 def initialize_es_model_index(model):
     """
-    Taking a model utilizing the ESModelBinderMixin mixin, generate the
+    Taking a model utilizing the ESBoundModel, generate the
     default index and aliases into Elasticsearch, this is useful on first
     bootup of a new environment so a model has everything it needs to begin
     piping data to Elasticsearch.

@@ -197,3 +197,19 @@ class TestModelMaintainsStateAcrossDBandES(ElasticSearchBaseTest):
         self.assertNotEqual(
             unique_identifer, updated_es_data['_source']['unique_identifer'],
         )
+
+    def test_retrieving_values_for_model(self):
+        author = Author.objects.create(
+            publishing_name=self.publishing_name,
+            age=4, user=self.user,
+        )
+
+        document = author.retrive_es_fields()
+        self.assertDictEqual(
+            {
+                'publishing_name': self.publishing_name,
+                'user': author.user.pk,
+                'pk': author.pk
+            },
+            document['_source']
+        )

@@ -34,11 +34,11 @@ running off different hosts.
 **Tieing models to indexes.**
 
 Tieing a model to an elasticsearch index can be done on the fly by adding
-the mixin
+the base ES model
 
 .. code-block:: python
 
-    class Author(ESModelBinderMixin, models.Model):
+    class Author(ESBoundModel):
         user = models.ForeignKey(
             User, on_delete=models.CASCADE
         )
@@ -63,11 +63,11 @@ the following base types to Elasticsearch compatible values.
 
 
 If this mapping doesn't suit you or you wish to extend it you can do so
-by overriding the `convert_to_indexable_format` method on the mixin.
+by overriding the `convert_to_indexable_format` method on the model.
 
 .. code-block:: python
 
-    class Author(ESModelBinderMixin, models.Model):
+    class Author(ESBoundModel):
 
         def convert_to_indexable_format(self, value):
             if isinstance(value, float):
@@ -120,7 +120,7 @@ data-set grows and requirements change. For example:
                 for pk, name in values
             }
 
-    class User(ESModelBinderMixin, models.Model):
+    class User(ESBoundModel):
         first_name = model.CharField()
         es_cached_extra_fields = (UniqueIdentiferField,)
 
@@ -142,7 +142,7 @@ its module path directory. this can be overridden by setting the
 
 .. code-block:: python
 
-    class Author(ESModelBinderMixin, models.Model):
+    class Author(ESBoundModel):
         index_name ='my-custom-index-name'
 
 or overriding the `get_index_base_name` method, by default the index will be
@@ -165,7 +165,7 @@ can override this on the model by defining your own postfix, e.g.
 
 .. code-block:: python
 
-    class Author(ESModelBinderMixin, models.Model):
+    class Author(ESBoundModel):
         index_name ='my-custom-index-name'
 
         es_index_alias_read_postfix = 'read-only-access'
@@ -208,7 +208,7 @@ model, for example.
     class ESEnabledQuerySet(ESQuerySetMixin, QuerySet):
         pass
 
-    class Author(ESModelBinderMixin, models.Model):
+    class Author(ESBoundModel):
         index_name ='my-custom-index-name'
 
         es_index_alias_read_postfix = 'read-only-access'
