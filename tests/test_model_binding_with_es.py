@@ -1,3 +1,5 @@
+from time import sleep
+
 from django.test import TestCase
 from elasticsearch.exceptions import NotFoundError
 
@@ -213,3 +215,36 @@ class TestModelMaintainsStateAcrossDBandES(ElasticSearchBaseTest):
             },
             document['_source']
         )
+
+    def test_filter_by_es_search(self):
+        author_1 = Author.objects.create(
+            publishing_name='Billy Fakington',
+            age=4, user=self.user,
+        )
+
+        author_2 = Author.objects.create(
+            publishing_name='Bobby Fakington',
+            age=4, user=self.user,
+        )
+
+        author_3 = Author.objects.create(
+            publishing_name='Billy not-realington',
+            age=4, user=self.user,
+        )
+
+        # We impose a sleep in here as Elasticsearch doesn't have
+        # enough time in the test to index by the time the query
+        # is preformed.
+        sleep(1)
+
+        queryset = Author.objects.filter_by_es_search(
+            query={
+                'match': {
+                    'publishing_name': 'Bobby*'
+                }
+            }
+        )
+
+        self.assertNotIn(author_1, queryset)
+        self.assertIn(author_2, queryset)
+        self.assertNotIn(author_3, queryset)

@@ -1,3 +1,4 @@
+from django.db.models import Case, When
 from elasticsearch.helpers import bulk
 
 from django_elasticsearch_model_binder.exceptions import (
@@ -40,3 +41,31 @@ class ESQuerySetMixin:
             index=self.model.get_write_alias_name(),
             doc_type='_doc'
         )
+
+    def filter_by_es_search(self, query, sort_query={}):
+        """
+        Taking an ES search query return the models that are
+        resolved by the search.
+
+        Queryset ordering can be denoted by setting sort_query, otherwise
+        sorting will be determined by set model ordering.
+        """
+        results = get_es_client().search(
+            _source=False,
+            index=self.model.get_read_alias_name(),
+            body={
+                'query': query,
+                'sort': sort_query,
+            }
+        )
+
+        model_pks = [d['_id'] for d in results['hits']['hits']]
+
+        # Force query to return in the order set by the sort_query
+        if sort_query:
+            preserved_pk_order = Case(
+                *[When(pk=pk, then=pos) for pos, pk in enumerate(model_pks)]
+            )
+            return self.filter(pk__in=model_pks).order_by(preserved_pk_order)
+
+        return self.filter(pk__in=model_pks)

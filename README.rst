@@ -230,6 +230,26 @@ to update, delete from Elasticsearch e.g.
     Author.objects.filter(pk__lt=100).delete_from_es()
 
 
+** QuerySet filtering **
+
+As noted above theres a number of operations that can be made off of the
+Queryset mixin. As expected this supports filtering of Queryset results by
+some defined ElasticSearch query. Say we wanted to filter a table by the
+prefix of a Charfield indexed in ElasticSearch we can go:
+
+.. code-block:: python
+
+    query = {
+        'match': {
+            'publishing_name': 'Bobby*'
+        }
+    }
+
+    queryset = Author.objects.filter_by_es_search(query=query)
+
+    >> queryset.values_list('publishing_name', flat=True)
+    >> ['Bobby Fakington', 'Bobby not-realington']
+
 **Rebuilding an entire table in Elasticsearch**
 
 At times you may want to throw away your current index and replace
