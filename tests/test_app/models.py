@@ -19,6 +19,24 @@ class Author(ESBoundModel):
     publishing_name = models.CharField(max_length=25, blank=True, null=True)
     age = models.IntegerField()
 
+    def get_index_mapping():
+        {
+            'settings': {},
+            'mappings': {
+                'properties': {
+                    'publishing_name': {
+                        'type': 'text',
+                        'fields': {
+                            'keyword': {
+                                'type': 'keyword'
+                            }
+                        }
+                    },
+                    'user': {'type': 'integer'},
+                }
+            }
+        }
+
     es_cached_model_fields = ['publishing_name', 'user']
 
     objects = ESEnabledQuerySet.as_manager()

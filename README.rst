@@ -5,6 +5,13 @@ Django Elasticsearch Model Binder
 .. image:: https://travis-ci.com/cr0mbly/django-elasticsearch-model-builder.svg?token=WSHb2ssbuqzAyoqCvdCs&branch=master
     :target: https://travis-ci.com/cr0mbly/django-elasticsearch-model-builder
 
+.. |PyPI pyversions| image:: https://img.shields.io/pypi/pyversions/django-elasticsearch-model-binder.svg
+   :target: https://pypi.org/project/django-elasticsearch-model-binder/
+
+.. |PyPI license| image:: https://img.shields.io/pypi/l/django-elasticsearch-model-binder.svg
+   :target: https://pypi.org/project/django-elasticsearch-model-binder/
+
+
 Plugin for a Django/Elasticsearch paired environment that aligns CRUD
 operations within Django with the related indexes that are tied to the models
 that they build.
@@ -249,6 +256,23 @@ prefix of a Charfield indexed in ElasticSearch we can go:
 
     >> queryset.values_list('publishing_name', flat=True)
     >> ['Bobby Fakington', 'Bobby not-realington']
+
+Supported by the `sort_query` kwarg you can also specify a queryset
+return ordering for the `filter_by_es_search`.
+
+.. code-block:: python
+
+    queryset = Author.objects.filter_by_es_search(
+        query={'prefix': {'publishing_name.keyword': 'Bill'}},
+        sort_query=[{
+            'publishing_name.keyword': {
+                'order': 'asc', 'missing': '_last'
+            }
+        }]
+    )
+
+This is useful in cases where ES backed field sorting trumps
+any model defined `order_by`.
 
 **Rebuilding an entire table in Elasticsearch**
 
