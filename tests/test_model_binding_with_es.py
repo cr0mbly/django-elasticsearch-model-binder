@@ -146,7 +146,7 @@ class TestModelMaintainsStateAcrossDBandES(ElasticSearchBaseTest):
 
         self.assertDictEqual(
             {'publishing_name': self.publishing_name, 'user': author.user.pk},
-            document['_source']
+            document
         )
 
 
@@ -316,3 +316,34 @@ class TestModelESQuerySetMixin(ElasticSearchBaseTest):
         )
 
         self.assertEqual([author_1.pk, author_2.pk, author_3.pk], queryset_pks)
+
+    def test_retrieve_multiple_model_fields(self):
+        author_1 = Author.objects.create(
+            publishing_name='Billy Fakington',
+            age=4, user=self.user,
+        )
+
+        author_2 = Author.objects.create(
+            publishing_name='Billy Billyson',
+            age=4, user=self.user,
+        )
+
+        sleep(1)
+
+        field_only_documents = Author.objects.retrieve_es_docs()
+
+        self.assertEqual(
+            [
+                {
+                    'pk': author_2.pk,
+                    'publishing_name': author_2.publishing_name,
+                    'user': author_2.user.pk
+                },
+                {
+                    'pk': author_1.pk,
+                    'publishing_name': author_1.publishing_name,
+                    'user': author_1.user.pk
+                }
+            ],
+            field_only_documents
+        )

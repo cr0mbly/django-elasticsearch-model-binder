@@ -69,3 +69,26 @@ class ESQuerySetMixin:
             return self.filter(pk__in=model_pks).order_by(preserved_pk_order)
 
         return self.filter(pk__in=model_pks)
+
+    def retrieve_es_docs(self, only_include_fields=True):
+        """
+        Retrieve all ES Cached fields for the queryset. Set
+        only_include_source=False to return verbose response
+        from ElasticSearch.
+        """
+        results = get_es_client().search(
+            index=self.model.get_read_alias_name(),
+            body={
+                'query': {
+                    'ids': {'values': list(self.values_list('pk', flat=True))}
+                }
+            }
+        )
+
+        if only_include_fields:
+            return [
+                doc['_source']
+                for doc in results['hits']['hits']
+            ]
+
+        return results

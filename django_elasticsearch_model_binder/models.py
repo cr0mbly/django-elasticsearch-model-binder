@@ -209,12 +209,12 @@ class ESBoundModel(Model):
         if drop_old_index:
             get_es_client().indices.delete(old_indicy)
 
-    def retrive_es_fields(self):
+    def retrive_es_fields(self, only_include_fields=True):
         """
         Returns the currently indexed fields within ES for the model.
         """
         try:
-            return get_es_client().get(
+            results = get_es_client().get(
                 id=self.pk, index=self.get_read_alias_name(),
             )
         except NotFoundError:
@@ -223,3 +223,8 @@ class ESBoundModel(Model):
                 f'{self.get_index_base_name()}, model requires '
                 f'indexing to retrieve fields back.'
             )
+
+        if only_include_fields:
+            return results['_source']
+
+        return results

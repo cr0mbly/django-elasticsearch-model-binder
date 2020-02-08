@@ -5,11 +5,11 @@ Django Elasticsearch Model Binder
 .. image:: https://travis-ci.com/cr0mbly/django-elasticsearch-model-builder.svg?token=WSHb2ssbuqzAyoqCvdCs&branch=master
     :target: https://travis-ci.com/cr0mbly/django-elasticsearch-model-builder
 
-.. |PyPI pyversions| image:: https://img.shields.io/pypi/pyversions/django-elasticsearch-model-binder.svg
-   :target: https://pypi.org/project/django-elasticsearch-model-binder/
+.. image:: https://img.shields.io/pypi/v/django-elasticsearch-model-binder.svg
+    :target: https://pypi.org/project/django-elasticsearch-model-binder
 
-.. |PyPI license| image:: https://img.shields.io/pypi/l/django-elasticsearch-model-binder.svg
-   :target: https://pypi.org/project/django-elasticsearch-model-binder/
+.. image:: https://img.shields.io/pypi/l/django-elasticsearch-model-binder.svg
+    :target: https://pypi.org/project/django-elasticsearch-model-binder
 
 
 Plugin for a Django/Elasticsearch paired environment that aligns CRUD
@@ -133,11 +133,11 @@ data-set grows and requirements change. For example:
 
 
 This will result in an index being created for the user model with a single
-custom field per model document set too
+custom field per model document set too:
 
 .. code-block:: python
 
-    `{total_number_of_duplicate_names: <int>}`
+    {total_number_of_duplicate_names: <int>}
 
 
 **Setting index name**
@@ -237,7 +237,7 @@ to update, delete from Elasticsearch e.g.
     Author.objects.filter(pk__lt=100).delete_from_es()
 
 
-** QuerySet filtering **
+**QuerySet filtering**
 
 As noted above theres a number of operations that can be made off of the
 Queryset mixin. As expected this supports filtering of Queryset results by
@@ -273,6 +273,28 @@ return ordering for the `filter_by_es_search`.
 
 This is useful in cases where ES backed field sorting trumps
 any model defined `order_by`.
+
+**Retrieving ES fields**
+
+Pulling cached fields back from Elasticsearch can be preformed both on the
+model and related manager if the `ESQuerySetMixin` is used.
+
+From the model:
+
+.. code-block:: python
+
+    >>> author = Author.objects.first()
+    >>> author.retrive_es_fields()
+
+From the QuerySet:
+
+.. code-block:: python
+
+    >>> Author.objects.filter(pk__lt=100).retrieve_es_docs()
+
+
+You can also retrieve the verbose output of the query by using
+the `only_include_fields=False` on both the above calls.
 
 **Rebuilding an entire table in Elasticsearch**
 
