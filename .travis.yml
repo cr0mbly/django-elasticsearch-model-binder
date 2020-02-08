@@ -1,14 +1,25 @@
 language: python
 
-python: 3.5
-
 matrix:
   include:
-    - env: TOX_ENV=py35-django-111-es6
-      python: 3.5
-    - env: TOX_ENV=py34-django-111-es6
-      python: 3.4
-
+    - env: TOX_ENV=py38-django-30-es6
+      python: 3.8
+    - env: TOX_ENV=py38-django-22-es6
+      python: 3.8
+    - env: TOX_ENV=py38-django-111-es6
+      python: 3.8
+    - env: TOX_ENV=py37-django-30-es6
+      python: 3.7
+    - env: TOX_ENV=py37-django-22-es6
+      python: 3.7
+    - env: TOX_ENV=py37-django-111-es6
+      python: 3.7
+    - env: TOX_ENV=py36-django-30-es6
+      python: 3.6
+    - env: TOX_ENV=py36-django-22-es6
+      python: 3.6
+    - env: TOX_ENV=py36-django-111-es6
+      python: 3.6
 install:
 - pip install tox
 
@@ -17,6 +28,7 @@ script: tox -e $TOX_ENV
 
 cache: pip
 
+# Setup Elasticsearch Environment
 env:
   global:
     - ES_APT_URL=https://artifacts.elastic.co/packages/7.x/apt

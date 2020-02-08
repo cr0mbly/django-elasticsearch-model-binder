@@ -5,6 +5,13 @@ Django Elasticsearch Model Binder
 .. image:: https://travis-ci.com/cr0mbly/django-elasticsearch-model-builder.svg?token=WSHb2ssbuqzAyoqCvdCs&branch=master
     :target: https://travis-ci.com/cr0mbly/django-elasticsearch-model-builder
 
+.. image:: https://img.shields.io/pypi/v/django-elasticsearch-model-binder.svg
+    :target: https://pypi.org/project/django-elasticsearch-model-binder
+
+.. image:: https://img.shields.io/pypi/l/django-elasticsearch-model-binder.svg
+    :target: https://pypi.org/project/django-elasticsearch-model-binder
+
+
 Plugin for a Django/Elasticsearch paired environment that aligns CRUD
 operations within Django with the related indexes that are tied to the models
 that they build.
@@ -30,15 +37,34 @@ this settings dictionary will be fed straight in, this helps with more
 complicated Elasticsearch setups with encryption and multiple clusters
 running off different hosts.
 
+IF your wanting the index to be automatically generated during first model 
+generation you can add the following to your app to setup all of the indexes
+and alises so your model can start emitting cached fields to Elasticsearch
+
+from django.apps import AppConfig
+
+.. code-block:: python
+
+    class TestAppConfig(AppConfig):
+        name = 'tests.testapp'
+        verbose_name = 'TestApp'
+
+        def ready(self):
+            from tests.test_app.models import Author
+            from django_elasticsearch_model_binder.utils import (
+                initialize_es_model_index
+            )
+            initialize_es_model_index(Author)
+
 
 **Tieing models to indexes.**
 
 Tieing a model to an elasticsearch index can be done on the fly by adding
-the mixin
+the base ES model
 
 .. code-block:: python
 
-    class Author(ESModelBinderMixin, models.Model):
+    class Author(ESBoundModel):
         user = models.ForeignKey(
             User, on_delete=models.CASCADE
         )
@@ -63,11 +89,11 @@ the following base types to Elasticsearch compatible values.
 
 
 If this mapping doesn't suit you or you wish to extend it you can do so
-by overriding the `convert_to_indexable_format` method on the mixin.
+by overriding the `convert_to_indexable_format` method on the model.
 
 .. code-block:: python
 
-    class Author(ESModelBinderMixin, models.Model):
+    class Author(ESBoundModel):
 
         def convert_to_indexable_format(self, value):
             if isinstance(value, float):
@@ -120,17 +146,17 @@ data-set grows and requirements change. For example:
                 for pk, name in values
             }
 
-    class User(ESModelBinderMixin, models.Model):
+    class User(ESBoundModel):
         first_name = model.CharField()
         es_cached_extra_fields = (UniqueIdentiferField,)
 
 
 This will result in an index being created for the user model with a single
-custom field per model document set too
+custom field per model document set too:
 
 .. code-block:: python
 
-    `{total_number_of_duplicate_names: <int>}`
+    {total_number_of_duplicate_names: <int>}
 
 
 **Setting index name**
@@ -142,7 +168,7 @@ its module path directory. this can be overridden by setting the
 
 .. code-block:: python
 
-    class Author(ESModelBinderMixin, models.Model):
+    class Author(ESBoundModel):
         index_name ='my-custom-index-name'
 
 or overriding the `get_index_base_name` method, by default the index will be
@@ -165,7 +191,7 @@ can override this on the model by defining your own postfix, e.g.
 
 .. code-block:: python
 
-    class Author(ESModelBinderMixin, models.Model):
+    class Author(ESBoundModel):
         index_name ='my-custom-index-name'
 
         es_index_alias_read_postfix = 'read-only-access'
@@ -208,7 +234,7 @@ model, for example.
     class ESEnabledQuerySet(ESQuerySetMixin, QuerySet):
         pass
 
-    class Author(ESModelBinderMixin, models.Model):
+    class Author(ESBoundModel):
         index_name ='my-custom-index-name'
 
         es_index_alias_read_postfix = 'read-only-access'
@@ -229,6 +255,65 @@ to update, delete from Elasticsearch e.g.
     # Delete models with selected fields into Elasticsearch
     Author.objects.filter(pk__lt=100).delete_from_es()
 
+
+**QuerySet filtering**
+
+As noted above theres a number of operations that can be made off of the
+Queryset mixin. As expected this supports filtering of Queryset results by
+some defined ElasticSearch query. Say we wanted to filter a table by the
+prefix of a Charfield indexed in ElasticSearch we can go:
+
+.. code-block:: python
+
+    query = {
+        'match': {
+            'publishing_name': 'Bobby*'
+        }
+    }
+
+    queryset = Author.objects.filter_by_es_search(query=query)
+
+    >> queryset.values_list('publishing_name', flat=True)
+    >> ['Bobby Fakington', 'Bobby not-realington']
+
+Supported by the `sort_query` kwarg you can also specify a queryset
+return ordering for the `filter_by_es_search`.
+
+.. code-block:: python
+
+    queryset = Author.objects.filter_by_es_search(
+        query={'prefix': {'publishing_name.keyword': 'Bill'}},
+        sort_query=[{
+            'publishing_name.keyword': {
+                'order': 'asc', 'missing': '_last'
+            }
+        }]
+    )
+
+This is useful in cases where ES backed field sorting trumps
+any model defined `order_by`.
+
+**Retrieving ES fields**
+
+Pulling cached fields back from Elasticsearch can be preformed both on the
+model and related manager if the `ESQuerySetMixin` is used.
+
+From the model:
+
+.. code-block:: python
+
+    >>> author = Author.objects.first()
+    >>> author.retrive_es_fields()
+
+From the QuerySet:
+
+.. code-block:: python
+
+    >>> Author.objects.filter(pk__lt=100).retrieve_es_docs()
+
+
+You can also retrieve the verbose output of the query by using
+the `only_include_fields=False` on both the above calls.
 
 **Rebuilding an entire table in Elasticsearch**
 

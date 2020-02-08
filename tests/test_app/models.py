@@ -1,12 +1,12 @@
 from django.db import models
 
-from django_elasticsearch_model_binder import ESModelBinderMixin
+from django_elasticsearch_model_binder import ESBoundModel
 
 from tests.test_app.managers import ESEnabledQuerySet
 from tests.test_app.utils import UniqueIdentiferField
 
 
-class User(ESModelBinderMixin, models.Model):
+class User(ESBoundModel):
     email = models.EmailField(max_length=254)
 
     es_cached_extra_fields = (UniqueIdentiferField,)
@@ -14,10 +14,28 @@ class User(ESModelBinderMixin, models.Model):
     objects = ESEnabledQuerySet.as_manager()
 
 
-class Author(ESModelBinderMixin, models.Model):
+class Author(ESBoundModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     publishing_name = models.CharField(max_length=25, blank=True, null=True)
     age = models.IntegerField()
+
+    def get_index_mapping():
+        {
+            'settings': {},
+            'mappings': {
+                'properties': {
+                    'publishing_name': {
+                        'type': 'text',
+                        'fields': {
+                            'keyword': {
+                                'type': 'keyword'
+                            }
+                        }
+                    },
+                    'user': {'type': 'integer'},
+                }
+            }
+        }
 
     es_cached_model_fields = ['publishing_name', 'user']
 
