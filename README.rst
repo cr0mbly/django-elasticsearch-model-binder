@@ -37,6 +37,25 @@ this settings dictionary will be fed straight in, this helps with more
 complicated Elasticsearch setups with encryption and multiple clusters
 running off different hosts.
 
+IF your wanting the index to be automatically generated during first model 
+generation you can add the following to your app to setup all of the indexes
+and alises so your model can start emitting cached fields to Elasticsearch
+
+from django.apps import AppConfig
+
+.. code-block:: python
+
+    class TestAppConfig(AppConfig):
+        name = 'tests.testapp'
+        verbose_name = 'TestApp'
+
+        def ready(self):
+            from tests.test_app.models import Author
+            from django_elasticsearch_model_binder.utils import (
+                initialize_es_model_index
+            )
+            initialize_es_model_index(Author)
+
 
 **Tieing models to indexes.**
 
