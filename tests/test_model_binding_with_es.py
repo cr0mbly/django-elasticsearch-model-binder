@@ -332,18 +332,19 @@ class TestModelESQuerySetMixin(ElasticSearchBaseTest):
 
         field_only_documents = Author.objects.retrieve_es_docs()
 
-        self.assertEqual(
-            [
-                {
-                    'pk': author_2.pk,
-                    'publishing_name': author_2.publishing_name,
-                    'user': author_2.user.pk
-                },
-                {
-                    'pk': author_1.pk,
-                    'publishing_name': author_1.publishing_name,
-                    'user': author_1.user.pk
-                }
-            ],
+        self.assertIn(
+            {
+                'pk': author_2.pk,
+                'publishing_name': author_2.publishing_name,
+                'user': author_2.user.pk
+            },
+            field_only_documents
+        )
+        self.assertIn(
+            {
+                'pk': author_1.pk,
+                'publishing_name': author_1.publishing_name,
+                'user': author_1.user.pk
+            },
             field_only_documents
         )
