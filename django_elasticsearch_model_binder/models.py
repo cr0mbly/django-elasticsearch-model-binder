@@ -33,9 +33,6 @@ class ESBoundModel(Model):
     es_index_alias_read_postfix = 'read'
     es_index_alias_write_postfix = 'write'
 
-    class Meta:
-        abstract = True
-
     @classmethod
     def get_index_base_name(cls) -> str:
         """
