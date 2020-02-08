@@ -23,6 +23,9 @@ class ESBoundModel(Model):
     and configuration within the database.
     """
 
+    class Meta:
+        abstract = True
+
     # Fields to be cached in ES.
     es_cached_model_fields = []
 
