@@ -2,8 +2,8 @@
 Django Elasticsearch Model Binder
 =================================
 
-.. image:: https://travis-ci.com/cr0mbly/django-elasticsearch-model-builder.svg?token=WSHb2ssbuqzAyoqCvdCs&branch=master
-    :target: https://travis-ci.com/cr0mbly/django-elasticsearch-model-builder
+.. image:: https://travis-ci.com/cr0mbly/django-elasticsearch-model-binder.svg?token=WSHb2ssbuqzAyoqCvdCs&branch=master
+    :target: https://travis-ci.com/cr0mbly/django-elasticsearch-model-binder
 
 .. image:: https://img.shields.io/pypi/v/django-elasticsearch-model-binder.svg
     :target: https://pypi.org/project/django-elasticsearch-model-binder
